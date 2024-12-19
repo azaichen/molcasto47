@@ -36,6 +36,10 @@ OBJ90 = definitions.o \
         orbitalextractor.o \
 	functions.o
 
+%.mod: %.f90
+	$(FC90) $(FOPT) $(FFLAGS) -c $< -o $@
+
+%.o : %.mod
 
 .F.o:
 	$(FC) $(FOPT) $(FFLAGS) -c $< -o $@
