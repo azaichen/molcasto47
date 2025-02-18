@@ -57,7 +57,7 @@ clean:
 	rm -f *.o *.mod
 
 realclean:
-	rm -f $(BIN) *.o *.mod
+	rm -f $(BIN).exe *.o *.mod
 
 
 

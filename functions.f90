@@ -36,4 +36,37 @@ end if
 
 end function dfact
 
+subroutine sort_index(arr, idx, n)
+    integer, intent(in) :: n
+    integer, intent(inout) :: arr(n), idx(n)
+    integer :: i, j, temp
+
+    do i = 1, n - 1
+      do j = i + 1, n
+        if (arr(idx(i)) > arr(idx(j))) then
+          temp = idx(i)
+          idx(i) = idx(j)
+          idx(j) = temp
+        end if
+      end do
+    end do
+end subroutine sort_index
+
+subroutine sort_occ(arr, idx, n)
+    integer, intent(in) :: n
+    integer, intent(inout) :: idx(n)
+        real(8), intent(inout) :: arr(n)
+    integer :: i, j, temp
+
+    do i = 1, n - 1
+      do j = i + 1, n
+        if (arr(idx(i)) < arr(idx(j))) then
+          temp = idx(i)
+          idx(i) = idx(j)
+          idx(j) = temp
+        end if
+      end do
+    end do
+end subroutine sort_occ
+
 end module functions
