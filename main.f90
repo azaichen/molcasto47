@@ -32,19 +32,17 @@ program molcasto47
 
   character*(LCHARS) :: h5file, orbfile
 
-  real(KREAL), dimension(:,:), allocatable :: C, n, F, S, A, P, D, St, Sqev
+  real(KREAL), dimension(:,:), allocatable :: C, n, F, S, A, P, D
 
   integer(KINT) :: Nbas, np, ns, spn, Nshell, lbas, mbas
 
-  real(KREAL), dimension(:), allocatable :: W, ev
-
-  integer(KINT) :: i, j, k, m, l, LW, info, Lmax, irrep, ios, deg
+  integer(KINT) :: i, j, k, m, l, Lmax, irrep, ios
 
   integer, dimension(:,:), allocatable :: basis_ident
   
   real(KREAL) :: rtemp
 
-  logical :: SYM, exists, have_orb
+  logical :: SYM, have_orb
 
   integer, dimension(:), allocatable :: nprim, npntr, ncomps
 
@@ -91,7 +89,7 @@ program molcasto47
   call h5molcas(h5file, atoms, charges, coord, overlap_out, fock_out,&
     & mo_out, occ_out, basis, prim, IDSP, IDSB, dens_out, DS, SYM)
 
-  Nbas = sum(basis)
+  Nbas = int(sum(basis),kind(4))
 
   allocate(C(Nbas,Nbas))
   allocate(n(Nbas,Nbas))
@@ -114,8 +112,10 @@ program molcasto47
   if (SYM) then
     k = 0
     do irrep = 1, size(basis)
-      do i = 1,basis(irrep)
-        do j = 1,basis(irrep)
+      do i = 1,int(basis(irrep),kind(4))
+        if (i<0) stop ('Error: possible integer overflow in i-loop!')
+        do j = 1,int(basis(irrep),kind(4))
+          if (j<0) stop ('Error: possible integer overflow in j-loop!')
           k = k + 1
           C(m+j,m+i) = mo_out(k)
           S(m+j,m+i) = overlap_out(k)
@@ -126,7 +126,7 @@ program molcasto47
           endif
         enddo
       enddo
-      m = m + basis(irrep)
+      m = m + int(basis(irrep),kind(4))
     enddo
   else
     k = 0
