@@ -20,7 +20,7 @@ FLIB = -lblas -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lhdf5 -lhdf5_fortran
 INC = -I/usr/include/hdf5/serial
 
 # Fortran options for gfortran:
-FFLAGS = $(OMP) $(INC)  -g -fimplicit-none -fbounds-check -fbacktrace -ffpe-trap=zero,overflow,underflow
+FFLAGS = $(OMP) $(INC)  
 
 # Fortran options for Intel fortran:
 #FFLAGS = $(OMP) $(INC)  -g -traceback -C -fpe0
@@ -57,7 +57,10 @@ clean:
 	rm -f *.o *.mod
 
 realclean:
-	rm -f $(BIN) *.o *.mod
+	rm -f $(BIN).exe *.o *.mod
+
+debug: FFLAGS += -g -fimplicit-none -fbounds-check -fbacktrace -ffpe-trap=zero,overflow,underflow -Wall
+debug: all
 
 
 
