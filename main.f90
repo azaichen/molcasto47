@@ -14,6 +14,7 @@ program molcasto47
   use hdf5
   use h5extractor
   use orbitals
+!  use functions
 
   implicit none
 
@@ -27,8 +28,7 @@ program molcasto47
 
   integer(HID_T), dimension(:), allocatable :: basis, atoms
 
-  integer, dimension(:), allocatable :: IDSP, IDSB, label, primps, &
-    ncomp, nptr, n0nums
+  integer, dimension(:), allocatable :: IDSP, IDSB, label, n0nums
 
   character*(LCHARS) :: h5file, orbfile
 
@@ -40,14 +40,16 @@ program molcasto47
 
   integer(KINT) :: i, j, k, m, l, LW, info, Lmax, irrep, ios, deg
 
+  integer, dimension(:,:), allocatable :: basis_ident
+  
   real(KREAL) :: rtemp
 
   logical :: SYM, exists, have_orb
 
-  integer, dimension(:), pointer :: nprim, npntr, ncomps
+  integer, dimension(:), allocatable :: nprim, npntr, ncomps
 
   real(KREAL), parameter :: zero = 0.0d0
-
+ 
   ! ============================================================================
 
   ! check command line options, check if input files can be opened:
@@ -100,6 +102,14 @@ program molcasto47
   allocate(n0nums(size(prim)/2))
   allocate(label(Nbas))
 
+  ! Initilize variables 
+  C = 0 
+  n = 0 
+  A = 0 
+  S = 0
+  F = 0
+
+  l = 0 
   m = 0
   if (SYM) then
     k = 0
@@ -111,7 +121,8 @@ program molcasto47
           S(m+j,m+i) = overlap_out(k)
           F(m+j,m+i) = fock_out(k)
           if (i == j) then
-            n(m+i,m+j) = occ_out(i)
+            l = l+1
+            n(m+i,m+j) = occ_out(l)
           endif
         enddo
       enddo
@@ -138,9 +149,15 @@ program molcasto47
 
   if (have_orb) then
     write(out,*) 'will use orbital file ', trim(orbfile)
-    call getorbitals(nbas,C,n)
+    call getorbitals(nbas,C,n,SYM,basis)
     close (iuo)
   end if
+
+ ! write(*,*) 'MO:'
+ ! write(*,'(10F8.4)') C
+ ! write(*,*) 'Occ:'
+ !  write(*,'(10F8.4)') (n(j,j), j = 1,Nbas)
+
 
   ! Aleksandr, please comment what is done next. Looks like a density
   ! matrix is calculated. Also, we appear to be placing the
@@ -149,20 +166,39 @@ program molcasto47
   ! of duplicating the arrays. We can do that later, however, after
   ! everything is confirmed to work as intended.
 
+  ! Yes. Here and in some other cases can be used reshape or pointers
+  ! but I am not very familiar with the reshape function. I will try 
+  ! to do it later
+
   if (SYM) then
+    !write the desymmetrization matrix
+    
     allocate(D(Nbas,Nbas))
     k = 0
+    D = 0
     do i = 1,Nbas
       do j = 1,Nbas
         k = k + 1
         D(j,i) = DS(k)
       enddo
     enddo
-
+   
+   !calculate density matrix  
     call DGEMM('N','T',Nbas,Nbas,Nbas,1.0D0,n,Nbas,C,Nbas,0.0D0,A,Nbas)
     call DGEMM('N','N',Nbas,Nbas,Nbas,1.0D0,C,Nbas,A,Nbas,0.0D0,P,Nbas)
+   !dessymetrize all
+    call DGEMM('N','T',Nbas,Nbas,Nbas,1.0D0,P,Nbas,D,Nbas,0.0D0,A,Nbas)
+    call DGEMM('N','N',Nbas,Nbas,Nbas,1.0D0,D,Nbas,A,Nbas,0.0D0,P,Nbas)
 
-  else ! Aleksandr, the 2 lines below look the same as the 2 lines above
+    call DGEMM('N','T',Nbas,Nbas,Nbas,1.0D0,S,Nbas,D,Nbas,0.0D0,A,Nbas)
+    call DGEMM('N','N',Nbas,Nbas,Nbas,1.0D0,D,Nbas,A,Nbas,0.0D0,S,Nbas)
+    
+    call DGEMM('N','T',Nbas,Nbas,Nbas,1.0D0,F,Nbas,D,Nbas,0.0D0,A,Nbas)
+    call DGEMM('N','N',Nbas,Nbas,Nbas,1.0D0,D,Nbas,A,Nbas,0.0D0,F,Nbas)
+
+  else
+    !calculate density matrix in symmetry free case 
+
     call DGEMM('N','T',Nbas,Nbas,Nbas,1.0D0,n,Nbas,C,Nbas,0.0D0,A,Nbas)
     call DGEMM('N','N',Nbas,Nbas,Nbas,1.0D0,C,Nbas,A,Nbas,0.0D0,P,Nbas)
 
@@ -176,23 +212,18 @@ program molcasto47
   m = 0
   k = 0
 
+  
   allocate(EXPONENTS(size(prim)/2))
   allocate(CONTRACTION(size(prim)/2))
+  
 
   do i = 1,size(prim),2
-    !if (prim(i+1) .ne. 0.00D0) then
-    !write(*,'(2F14.4)') prim(i), prim(i+1)
     np = np+1
     EXPONENTS(np) = prim(i)
     CONTRACTION(np) = prim(i+1)
     n0nums(np) = (i+1)/2
-    !write(*,*) np, n0nums(np), CONTRACTION(np)
-    !endif
   enddo
-
-  allocate(primps(np))
-  allocate(ncomp(np))
-  allocate(nptr(np))
+  
 
   allocate(CS(np))
   allocate(CP(np))
@@ -201,6 +232,7 @@ program molcasto47
   allocate(CG(np))
   allocate(CH(np))
   allocate(CI(np))
+  
 
   CS = 0.0D0
   CP = 0.0D0
@@ -212,23 +244,54 @@ program molcasto47
 
   ! Construct arrays with contraction coefficients, shells and pointers
   ! with degeneracy info
+  ! this part of code was changed and optimized
+  
+  ns = 0
+  k = 0
+  Nshell = 0 
+  
+  
+  do i = 1,SIZE(IDSP),3
+     if (i+4 < SIZE(IDSP)) then
+        if ((IDSP(i) .ne. IDSP(i+3)) .or. (IDSP(i+1) .ne. IDSP(i+4)) .or. & 
+           (IDSP(i+2) .ne. IDSP(i+5))) then 
+           Nshell = Nshell + 1
+         endif 
+      else
+           Nshell = Nshell + 1 
+      exit 
+      endif 
+  enddo
+  
+  allocate(basis_ident(5,Nshell))
+  
+  basis_ident = 0
+  basis_ident(5,1)=1
+  
+  do i = 1,SIZE(IDSP),3
+     ns = ns+1
+     if (i+4 < SIZE(IDSP)) then
+        if ((IDSP(i) .ne. IDSP(i+3)) .or. (IDSP(i+1) .ne. IDSP(i+4)) .or. & 
+           (IDSP(i+2) .ne. IDSP(i+5))) then 
+           k = k + 1
+           basis_ident(1,k) = IDSP(i)
+           basis_ident(2,k) = IDSP(i+1)
+           basis_ident(3,k) = IDSP(i+2)
+           basis_ident(4,k) = ns 
+           basis_ident(5,k+1) = basis_ident(5,k)+ns
+           ns = 0
+         endif 
+      else
+           k = k + 1 
+           basis_ident(1,k) = IDSP(i)
+           basis_ident(2,k) = IDSP(i+1)
+           basis_ident(3,k) = IDSP(i+2)
+           basis_ident(4,k) = ns
+      exit 
+      endif 
+  enddo
 
-  nptr = 1
   do i = 1,np
-
-    if (IDSP(3*n0nums(i)-2) .ne. IDSP(m+1) .or. IDSP(3*n0nums(i)-1)&
-      & .ne. IDSP(m+2) .or. IDSP(3*n0nums(i)) .ne. IDSP(m+3)) then
-
-      m = 3*(n0nums(i)-1)
-
-      ns = ns + 1
-      nptr(ns) = nptr(ns-1)+spn
-      spn = 0
-    endif
-
-    spn = spn+1
-    primps(ns) = spn
-    ncomp(ns) = (2*IDSP(3*n0nums(i)-1)+1)
 
     lbas = IDSP(3*n0nums(i)-1) ! basis function ang. mom.
 
@@ -252,47 +315,24 @@ program molcasto47
     endif
   enddo
 
-  allocate(nprim(np))
-  allocate(npntr(np))
-  allocate(ncomps(np))
+  allocate(nprim(Nbas))
+  allocate(npntr(Nbas))
+  allocate(ncomps(Nbas))
+  
+  j = 0 
+  do i = 1,SIZE(IDSB),4
+     j = j + 1
+     do k = 1,Nshell
+          if (basis_ident(1,k) == IDSB(i)   .and. &
+              basis_ident(2,k) == IDSB(i+2) .and. &
+              basis_ident(3,k) == IDSB(i+1)) then 
+              nprim(j) = basis_ident(4,k)
+              npntr(j) = basis_ident(5,k) 
+           endif
+     enddo
+  enddo
 
   ncomps = 1
-  nprim = primps
-  npntr = nptr
-
-  ! Convert the basis contraction to NBO input format
-
-  k = 0
-  NShell = 0
-
-  do i = 1, ns
-    if (ncomp(i) > 1) then
-      deg = ncomp(i)
-      if (ncomp(i-1) .ne. ncomp(i)) then
-        m = 0
-        do j = i, ns+1
-          if (ncomp(i) == ncomp(j)) then
-            m = m + 1
-          else
-
-            do l = 1, deg
-              nprim(i+(l-1)*m+k:i-1+l*m+k) = primps(i:i+m-1)
-              npntr(i+(l-1)*m+k:i-1+l*m+k) = nptr(i:i+m-1)
-
-            enddo
-            nprim(i+deg*m+k:np) = primps(i+m:np-k-(deg-1)*m)
-            npntr(i+deg*m+k:np) = nptr(i+m:np-k-(deg-1)*m)
-            k = k+(deg-1)*m
-            Nshell = Nshell+deg*m
-
-            exit
-          endif
-        enddo
-      endif
-    else
-      Nshell = Nshell+1
-    endif
-  enddo
 
   ! assign NBO FILE-47 input labels to the basis functions:
 
@@ -482,6 +522,7 @@ program molcasto47
  ! calculate trace(density matrix * overlap matrix) in desymmetrized (?)
  ! form; must give the number of electrons
 
+
  call DGEMM('N','N',Nbas,Nbas,Nbas,1.0D0,P,Nbas,S,Nbas,0.0D0,A,Nbas)
 
  rtemp = zero
@@ -518,11 +559,11 @@ program molcasto47
  write(i47,'(A)') '$END'
 
  write(i47,'(A)') '$CONTRACT'
- write(i47,*) 'NSHELL = ', Nshell
+ write(i47,*) 'NSHELL = ', Nbas
  write(i47,*) 'NEXP = ', np
- write(i47,'(1x,''NCOMP='',10(1x,I5))') (ncomps(i), i = 1, Nshell)
- write(i47,'(1x,''NPRIM='',10(1x,I5))') (nprim(i), i = 1, Nshell)
- write(i47,'(1x,''NPTR='',10(1x,I5))') (npntr(i), i = 1, Nshell)
+ write(i47,'(1x,''NCOMP='',10(1x,I5))') (ncomps(i), i = 1, Nbas)
+ write(i47,'(1x,''NPRIM='',10(1x,I5))') (nprim(i), i = 1, Nbas)
+ write(i47,'(1x,''NPTR='',10(1x,I5))') (npntr(i), i = 1, Nbas)
  write(i47,'(1x,''EXP='',3(1x,E24.15))') (EXPONENTS(i), i = 1, np)
 
  ! write contraction coefficients. We assume that the basis has at the
@@ -574,6 +615,8 @@ program molcasto47
  write(i47,'(4E24.16)') F
  write(i47,'(A)') '$END'
 
+ ! For LCAMO implementation the C matrices should be 
+ ! additionally desymmetrized!
  !write(i47,'(A)') '$LCAOMO'
  !write(i47,'(4E24.16)') C
  !write(i47,'(A)') '$END'
@@ -581,11 +624,6 @@ program molcasto47
 
  close(i47)
 
- ! deallocate arrays, clode file(s) and exit
-
- deallocate(primps)
- deallocate(ncomp)
- deallocate(nptr)
  deallocate(EXPONENTS)
  deallocate(CONTRACTION)
  deallocate(CS)
@@ -602,6 +640,7 @@ program molcasto47
  deallocate(nprim)
  deallocate(npntr)
  deallocate(ncomps)
+ deallocate(basis_ident)
 
  stop 'normal termination of molcasto47'
 

@@ -62,5 +62,3 @@ realclean:
 debug: FFLAGS += -g -fimplicit-none -fbounds-check -fbacktrace -ffpe-trap=zero,overflow,underflow -Wall
 debug: all
 
-
-

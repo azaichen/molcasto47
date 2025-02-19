@@ -28,9 +28,9 @@ subroutine h5molcas(h5file, atoms, charges, coord, overlap, fock,&
 
   integer(HID_T) :: root_id
 
-  character(len=20) :: datatype
+  character(len=35) :: datatype
 
-  character(len=20) :: data_attribute
+  character(len=35) :: data_attribute
 
   logical :: a_val, DMflag, SMflag
 
@@ -135,6 +135,8 @@ subroutine h5molcas(h5file, atoms, charges, coord, overlap, fock,&
   allocate(nbas(n_ireps))
 
   call h5aread_f(a_id, H5T_STD_I64LE, nbas, dims, ErrorFlag)
+  
+  write(*,*) nbas
 
   if (ErrorFlag.lt.0) then
     write(err,*) ' *** Error basis set size definition'
@@ -162,11 +164,13 @@ subroutine h5molcas(h5file, atoms, charges, coord, overlap, fock,&
   endif
 
   ! -----------------------------------
-  ! Extract the desymmetrization matrix
+  ! Check symmetry and extract the desymmetrization matrix
   ! -----------------------------------
 
   datatype = 'DESYM_MATRIX'
+
   call h5lexists_f(root_id,datatype,SMflag,ErrorFlag)
+
   if (SMflag) then
     SYMMETRY = .true.
     call h5dopen_f(root_id, datatype, d_desym, ErrorFlag)
@@ -177,14 +181,186 @@ subroutine h5molcas(h5file, atoms, charges, coord, overlap, fock,&
     allocate(desym(dmat))
     call h5dread_f(d_desym, H5T_IEEE_F64LE, desym, ds_dims, ErrorFlag)
     call h5dclose_f(d_desym,ErrorFlag)
+
     write(out,*) ' Calculation appears to have used Symmetry'
+  
+    ! --------------------------------------
+    ! Atomic centers and related information
+    ! --------------------------------------
+
+    datatype = 'DESYM_CENTER_ATNUMS'
+
+    call h5dopen_f(root_id, datatype, d_atoms, ErrorFlag)
+    
+    if (ErrorFlag.lt.0) THEN
+         write(*,*) " *** Error geeting atomic numbers"
+         return
+    endif
+
+    datatype = 'DESYM_CENTER_CHARGES'
+
+    call h5dopen_f(root_id, datatype, d_char, ErrorFlag)
+    
+    if (ErrorFlag.lt.0) THEN
+         write(*,*) " *** Error geeting atomic numbers"
+         return
+    endif
+ 
+
+    datatype = 'DESYM_CENTER_COORDINATES'
+
+    call h5dopen_f(root_id, datatype, d_coord, ErrorFlag)
+
+    if (ErrorFlag.lt.0) THEN
+        write(*,*) " *** Error geeting atomic coordinates"
+        return
+    endif
+
+    call h5dget_space_f(d_coord, d_space, ErrorFlag)
+    call h5sget_simple_extent_ndims_f(d_space, ds_rank, ErrorFlag)
+    call h5sget_simple_extent_dims_f(d_space, ds_dims, maxds_dims, ErrorFlag)
+    call h5sget_simple_extent_npoints_f(d_space, nat, ErrorFlag)
+
+
+    allocate(coord(nat))
+    
+    call h5dread_f(d_coord, H5T_IEEE_F64LE, coord, ds_dims, ErrorFlag)
+
+
+    call h5dget_space_f(d_char, d_space, ErrorFlag)
+    call h5sget_simple_extent_ndims_f(d_space, ds_rank, ErrorFlag)
+    call h5sget_simple_extent_dims_f(d_space, ds_dims, maxds_dims, ErrorFlag)
+    call h5sget_simple_extent_npoints_f(d_space, nat, ErrorFlag)
+
+    allocate(atoms(nat))
+    allocate(charges(nat))
+
+    call h5dread_f(d_char, H5T_IEEE_F64LE, charges, ds_dims, ErrorFlag)
+    call h5dread_f(d_atoms, H5T_STD_I64LE, atoms, ds_dims, ErrorFlag)
+ 
+  ! ---------
+  ! Basis IDS
+  ! ---------
+
+     datatype = 'DESYM_BASIS_FUNCTION_IDS'
+
+     call h5dopen_f(root_id, datatype, d_basids, ErrorFlag)
+    
+     if (ErrorFlag.lt.0) THEN
+         write(*,*) " *** Error geeting basis IDS"
+         return
+     endif
+
+     call h5dget_space_f(d_basids, d_space, ErrorFlag)
+     call h5sget_simple_extent_ndims_f(d_space, ds_rank, ErrorFlag)
+     call h5sget_simple_extent_dims_f(d_space, ds_dims, maxds_dims, ErrorFlag)
+     call h5sget_simple_extent_npoints_f(d_space, nbasids, ErrorFlag)
+
+     allocate(basids(nbasids))
+
+     call h5dread_f(d_basids, H5T_NATIVE_INTEGER, basids, ds_dims, ErrorFlag)
+
   else
+
+    !Nosymmetry case
+
     write(out,*) ' Symmetry info not found. Assuming C1 symmetry'
     SYMMETRY = .false.
-  endif
-
+   
+     ! --------------------------------------
+     ! Atomic centers and related information
+     ! --------------------------------------
+   
+     datatype = 'CENTER_ATNUMS'
+   
+     call h5dopen_f(root_id, datatype, d_atoms, ErrorFlag)
+   
+     if (ErrorFlag.lt.0) then
+       write(err,*) ' *** Error fetching atomic numbers'
+       stop 'error termination'
+     endif
+   
+     datatype = 'CENTER_CHARGES'
+   
+     call h5dopen_f(root_id, datatype, d_char, ErrorFlag)
+   
+     if (ErrorFlag.lt.0) then
+       write(err,*) ' *** Error geeting atomic numbers'
+       stop 'error termination'
+     endif
+   
+     datatype = 'CENTER_COORDINATES'
+   
+     call h5dopen_f(root_id, datatype, d_coord, ErrorFlag)
+   
+     if (ErrorFlag.lt.0) then
+       write(err,*) ' *** Error geeting atomic coordinates'
+       stop 'error termination'
+     endif
+   
+     call h5dget_space_f(d_coord, d_space, ErrorFlag)
+     call h5sget_simple_extent_ndims_f(d_space, ds_rank, ErrorFlag)
+     call h5sget_simple_extent_dims_f(d_space, ds_dims, maxds_dims, ErrorFlag)
+     call h5sget_simple_extent_npoints_f(d_space, nat, ErrorFlag)
+   
+     if (dbg>0) write(out,*) 'Coordinates:'
+   
+     allocate(coord(nat))
+   
+     call h5dread_f(d_coord, H5T_IEEE_F64LE, coord, ds_dims, ErrorFlag)
+   
+     if (dbg>0) write(out,'(3F8.4)') coord
+   
+     ! Atoms:
+   
+     call h5dget_space_f(d_char, d_space, ErrorFlag)
+     call h5sget_simple_extent_ndims_f(d_space, ds_rank, ErrorFlag)
+     call h5sget_simple_extent_dims_f(d_space, ds_dims, maxds_dims, ErrorFlag)
+     call h5sget_simple_extent_npoints_f(d_space, nat, ErrorFlag)
+   
+     if (dbg>0) write(out,*) 'Atoms:'
+   
+     allocate(atoms(nat))
+     allocate(charges(nat))
+   
+     call h5dread_f(d_char, H5T_IEEE_F64LE, charges, ds_dims, ErrorFlag)
+     call h5dread_f(d_atoms, H5T_STD_I64LE, atoms, ds_dims, ErrorFlag)
+   
+     if (dbg>0) write(out,*) atoms
+     if (dbg>0) write(out,*) int(atoms)
+   
+     ! ---------
+     ! Basis IDS
+     ! ---------
+   
+     datatype = 'BASIS_FUNCTION_IDS'
+   
+     call h5dopen_f(root_id, datatype, d_basids, ErrorFlag)
+   
+     if (ErrorFlag.lt.0) then
+       write(err,*) ' *** Error fetching basis IDS'
+       stop 'error termination'
+     endif
+   
+     call h5dget_space_f(d_basids, d_space, ErrorFlag)
+     call h5sget_simple_extent_ndims_f(d_space, ds_rank, ErrorFlag)
+     call h5sget_simple_extent_dims_f(d_space, ds_dims, maxds_dims, ErrorFlag)
+     call h5sget_simple_extent_npoints_f(d_space, nbasids, ErrorFlag)
+   
+     if (dbg>0) write(out,*) 'Basis IDS:'
+     if (dbg>0) write(out,*) d_space, ds_rank, ds_dims, maxds_dims, nprim
+   
+     allocate(basids(nbasids))
+   
+     call h5dread_f(d_basids, H5T_NATIVE_INTEGER, basids, ds_dims, ErrorFlag)
+   
+     if (dbg>0) write(out,'(4I4)') basids
+     
+   
+  endif !End of the symmetry dependent block
+  
   ! --------------------------------------------
-  ! Basis set primitives and related information
+  ! Primitives and related information
   ! --------------------------------------------
 
   datatype = 'PRIMITIVES'
@@ -229,95 +405,6 @@ subroutine h5molcas(h5file, atoms, charges, coord, overlap, fock,&
   call h5dread_f(d_primids, H5T_NATIVE_INTEGER, primids, ds_dims, ErrorFlag)
 
   if (dbg>0) write(out,'(3I4)') primids
-
-  ! --------------------------------------
-  ! Atomic centers and related information
-  ! --------------------------------------
-
-  datatype = 'CENTER_ATNUMS'
-
-  call h5dopen_f(root_id, datatype, d_atoms, ErrorFlag)
-
-  if (ErrorFlag.lt.0) then
-    write(err,*) ' *** Error fetching atomic numbers'
-    stop 'error termination'
-  endif
-
-  datatype = 'CENTER_CHARGES'
-
-  call h5dopen_f(root_id, datatype, d_char, ErrorFlag)
-
-  if (ErrorFlag.lt.0) then
-    write(err,*) ' *** Error geeting atomic numbers'
-    stop 'error termination'
-  endif
-
-  datatype = 'CENTER_COORDINATES'
-
-  call h5dopen_f(root_id, datatype, d_coord, ErrorFlag)
-
-  if (ErrorFlag.lt.0) then
-    write(err,*) ' *** Error geeting atomic coordinates'
-    stop 'error termination'
-  endif
-
-  call h5dget_space_f(d_coord, d_space, ErrorFlag)
-  call h5sget_simple_extent_ndims_f(d_space, ds_rank, ErrorFlag)
-  call h5sget_simple_extent_dims_f(d_space, ds_dims, maxds_dims, ErrorFlag)
-  call h5sget_simple_extent_npoints_f(d_space, nat, ErrorFlag)
-
-  if (dbg>0) write(out,*) 'Coordinates:'
-
-  allocate(coord(nat))
-
-  call h5dread_f(d_coord, H5T_IEEE_F64LE, coord, ds_dims, ErrorFlag)
-
-  if (dbg>0) write(out,'(3F8.4)') coord
-
-  ! Atoms:
-
-  call h5dget_space_f(d_char, d_space, ErrorFlag)
-  call h5sget_simple_extent_ndims_f(d_space, ds_rank, ErrorFlag)
-  call h5sget_simple_extent_dims_f(d_space, ds_dims, maxds_dims, ErrorFlag)
-  call h5sget_simple_extent_npoints_f(d_space, nat, ErrorFlag)
-
-  if (dbg>0) write(out,*) 'Atoms:'
-
-  allocate(atoms(nat))
-  allocate(charges(nat))
-
-  call h5dread_f(d_char, H5T_IEEE_F64LE, charges, ds_dims, ErrorFlag)
-  call h5dread_f(d_atoms, H5T_STD_I64LE, atoms, ds_dims, ErrorFlag)
-
-  if (dbg>0) write(out,*) atoms
-  if (dbg>0) write(out,*) int(atoms)
-
-  ! ---------
-  ! Basis IDS
-  ! ---------
-
-  datatype = 'BASIS_FUNCTION_IDS'
-
-  call h5dopen_f(root_id, datatype, d_basids, ErrorFlag)
-
-  if (ErrorFlag.lt.0) then
-    write(err,*) ' *** Error fetching basis IDS'
-    stop 'error termination'
-  endif
-
-  call h5dget_space_f(d_basids, d_space, ErrorFlag)
-  call h5sget_simple_extent_ndims_f(d_space, ds_rank, ErrorFlag)
-  call h5sget_simple_extent_dims_f(d_space, ds_dims, maxds_dims, ErrorFlag)
-  call h5sget_simple_extent_npoints_f(d_space, nbasids, ErrorFlag)
-
-  if (dbg>0) write(out,*) 'Basis IDS:'
-  if (dbg>0) write(out,*) d_space, ds_rank, ds_dims, maxds_dims, nprim
-
-  allocate(basids(nbasids))
-
-  call h5dread_f(d_basids, H5T_NATIVE_INTEGER, basids, ds_dims, ErrorFlag)
-
-  if (dbg>0) write(out,'(4I4)') basids
 
   ! -----------------------------------------
   ! Matrices: MOs, Occupations, Fock, Overlap
