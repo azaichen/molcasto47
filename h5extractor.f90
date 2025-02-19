@@ -130,7 +130,7 @@ subroutine h5molcas(h5file, atoms, charges, coord, overlap, fock,&
     stop 'error termination'
   endif
 
-  n_ireps = INT(max_dims(1),KIND(4))
+  n_ireps = INT(max_dims(1),KIND(n_ireps))
 
   allocate(nbas(n_ireps))
 
