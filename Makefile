@@ -6,6 +6,11 @@ FC     = gfortran
 #FC     = ifx
 FC90   = $(FC)
 LINKER = $(FC)
+# Debug flags (used for 'make debug')
+# gfortran:
+FDBG = -g -fimplicit-none -fbounds-check -fbacktrace -ffpe-trap=zero,overflow,underflow -Wall
+# Intel fortran:
+# FDBG = -g -traceback -C -fpe0
 
 ### Disable/Enable OpenMP support
 OMP = 
@@ -16,14 +21,11 @@ FOPT = -O2
 ### Extra libraries
 FLIB = -lblas -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lhdf5 -lhdf5_fortran
 
-### Include dir
+### Include dir(s)
 INC = -I/usr/include/hdf5/serial
 
-# Fortran options for gfortran:
+# Fortran options
 FFLAGS = $(OMP) $(INC)  
-
-# Fortran options for Intel fortran:
-#FFLAGS = $(OMP) $(INC)  -g -traceback -C -fpe0
 
 .SUFFIXES: .f .F .F90 .f90
 
@@ -59,6 +61,6 @@ clean:
 realclean:
 	rm -f $(BIN).exe *.o *.mod
 
-debug: FFLAGS += -g -fimplicit-none -fbounds-check -fbacktrace -ffpe-trap=zero,overflow,underflow -Wall
+debug: FFLAGS += $(FDBG)
 debug: all
 
