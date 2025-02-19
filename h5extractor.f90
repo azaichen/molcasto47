@@ -32,7 +32,7 @@ subroutine h5molcas(h5file, atoms, charges, coord, overlap, fock,&
 
   character(len=35) :: data_attribute
 
-  logical :: a_val, DMflag, SMflag
+  logical :: DMflag, SMflag
 
   integer(HID_T) :: a_id
 
@@ -54,7 +54,7 @@ subroutine h5molcas(h5file, atoms, charges, coord, overlap, fock,&
 
   integer(HID_T) :: nprim, nat, nbasids
 
-  integer :: ds_rank, cl, rw, n_ireps
+  integer :: ds_rank, n_ireps
 
   integer(HSIZE_T), dimension(1) :: ds_dims, maxds_dims, dims, max_dims
 
@@ -130,7 +130,7 @@ subroutine h5molcas(h5file, atoms, charges, coord, overlap, fock,&
     stop 'error termination'
   endif
 
-  n_ireps = max_dims(1)
+  n_ireps = INT(max_dims(1),KIND(4))
 
   allocate(nbas(n_ireps))
 
