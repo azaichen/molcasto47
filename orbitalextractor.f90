@@ -42,12 +42,12 @@ subroutine getorbitals(nbas, coef, occ, sym, basis)
     if (trim(line) == '#ORB') then
       write(out,*) ' orbitals found in orbitals file'
       do irrep = 1,size(basis)
-        do i = 1,int(basis(irrep),kind(4))
+        do i = 1,int(basis(irrep),kind(i))
           if (i<0) stop ('Error: possible integer overflow in i-loop!')
           read(iuo,*)
-          read(iuo,*) (coef(j+m,i+m), j = 1, int(basis(irrep),kind(4)))
+          read(iuo,*) (coef(j+m,i+m), j = 1, int(basis(irrep),kind(j)))
         enddo
-        m = m + int(basis(irrep),kind(4))
+        m = m + int(basis(irrep),kind(m))
       enddo
     endif
 

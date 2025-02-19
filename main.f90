@@ -89,7 +89,7 @@ program molcasto47
   call h5molcas(h5file, atoms, charges, coord, overlap_out, fock_out,&
     & mo_out, occ_out, basis, prim, IDSP, IDSB, dens_out, DS, SYM)
 
-  Nbas = int(sum(basis),kind(4))
+  Nbas = int(sum(basis),kind(Nbas))
 
   allocate(C(Nbas,Nbas))
   allocate(n(Nbas,Nbas))
@@ -112,9 +112,9 @@ program molcasto47
   if (SYM) then
     k = 0
     do irrep = 1, size(basis)
-      do i = 1,int(basis(irrep),kind(4))
+      do i = 1,int(basis(irrep),kind(i))
         if (i<0) stop ('Error: possible integer overflow in i-loop!')
-        do j = 1,int(basis(irrep),kind(4))
+        do j = 1,int(basis(irrep),kind(j))
           if (j<0) stop ('Error: possible integer overflow in j-loop!')
           k = k + 1
           C(m+j,m+i) = mo_out(k)
@@ -126,7 +126,7 @@ program molcasto47
           endif
         enddo
       enddo
-      m = m + int(basis(irrep),kind(4))
+      m = m + int(basis(irrep),kind(m))
     enddo
   else
     k = 0
